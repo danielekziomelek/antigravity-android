@@ -31,6 +31,7 @@ public final class AndroidBridge {
     private final Context appContext;
     private final UiBridge ui = new UiBridge();
     private volatile CodexAppServer codexServer;
+    private volatile com.agy.codex.TermuxCodexClient termuxCodexClient;
     private final ThemeBridge themeBridge;
     private final EngineBridge engine;
     private final EngineConfigJson config;
@@ -114,6 +115,37 @@ public final class AndroidBridge {
      * mandatory because the JavaScript interface may be visible to embedded frames.
      * Expected executable: files/codex/bin/codex (Android-compatible ARM64 build).
      */
+    /** Connect to the Termux companion on loopback using its one-time local bearer token. */
+    @JavascriptInterface
+    public String codexConnectTermux(String token, String bearerToken) {
+        if (!matchesNativeBridgeToken(token)) return codexJson("error", "Invalid native bridge token");
+        String secret = bearerToken == null ? "" : bearerToken.trim();
+        if (secret.length() < 32 || secret.length() > 160) return codexJson("error", "Paste the bearer token printed by the Termux bridge");
+        synchronized (this) {
+            if (termuxCodexClient != null) return codexJson("status", "already_connected");
+            termuxCodexClient = new com.agy.codex.TermuxCodexClient(secret, new com.agy.codex.TermuxCodexClient.Listener() {
+                @Override public void onEvent(String type, JSONObject data) {
+                    emitCodexEvent(type, data);
+                }
+            });
+            termuxCodexClient.start();
+        }
+        return codexJson("status", "connecting_to_termux");
+    }
+
+    @JavascriptInterface
+    public String codexTermuxAction(String token, String action, String message) {
+        if (!matchesNativeBridgeToken(token)) return codexJson("error", "Invalid native bridge token");
+        com.agy.codex.TermuxCodexClient client = termuxCodexClient;
+        if (client == null) return codexJson("error", "Connect Termux first");
+        if (!("start".equals(action) || "login".equals(action) || "thread".equals(action)
+                || "send".equals(action) || "stop".equals(action))) {
+            return codexJson("error", "Unsupported Termux action");
+        }
+        client.action(action, message);
+        return codexJson("status", "termux_" + action + "_requested");
+    }
+
     @JavascriptInterface
     public String codexStart(String token) {
         if (!matchesNativeBridgeToken(token)) return codexJson("error", "Invalid native bridge token");
@@ -159,6 +191,8 @@ public final class AndroidBridge {
     @JavascriptInterface
     public String codexLogin(String token) {
         if (!matchesNativeBridgeToken(token)) return codexJson("error", "Invalid native bridge token");
+        com.agy.codex.TermuxCodexClient remote = termuxCodexClient;
+        if (remote != null) { remote.action("login", null); return codexJson("status", "termux_login_requested"); }
         CodexAppServer server = codexServer;
         if (server == null) return codexJson("error", "Codex server is not running");
         server.startChatGptLogin();
@@ -168,6 +202,8 @@ public final class AndroidBridge {
     @JavascriptInterface
     public String codexStartThread(String token) {
         if (!matchesNativeBridgeToken(token)) return codexJson("error", "Invalid native bridge token");
+        com.agy.codex.TermuxCodexClient remote = termuxCodexClient;
+        if (remote != null) { remote.action("thread", null); return codexJson("status", "termux_thread_requested"); }
         CodexAppServer server = codexServer;
         if (server == null) return codexJson("error", "Codex server is not running");
         server.startThread();
@@ -177,6 +213,8 @@ public final class AndroidBridge {
     @JavascriptInterface
     public String codexSendMessage(String token, String message) {
         if (!matchesNativeBridgeToken(token)) return codexJson("error", "Invalid native bridge token");
+        com.agy.codex.TermuxCodexClient remote = termuxCodexClient;
+        if (remote != null) { remote.action("send", message); return codexJson("status", "termux_send_requested"); }
         CodexAppServer server = codexServer;
         if (server == null) return codexJson("error", "Codex server is not running");
         server.sendMessage(message);
@@ -186,6 +224,9 @@ public final class AndroidBridge {
     @JavascriptInterface
     public void codexStop(String token) {
         if (!matchesNativeBridgeToken(token)) return;
+        com.agy.codex.TermuxCodexClient remote;
+        synchronized (this) { remote = termuxCodexClient; termuxCodexClient = null; }
+        if (remote != null) remote.close();
         CodexAppServer server;
         synchronized (this) {
             server = codexServer;
