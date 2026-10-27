@@ -7,6 +7,9 @@ on:
       - codex-android-appserver-integration
     paths:
       - "app/src/main/java/com/agy/codex/**"
+      - "app/src/main/java/com/agy/bridge/**"
+      - "app/src/main/java/com/agy/ui/MainActivity.java"
+      - "app/src/main/java/com/agy/ui/webview/AppHtmlInjector.java"
       - "modules/builder/**"
       - "build.sh"
       - ".github/workflows/codex-android-build.yml"
