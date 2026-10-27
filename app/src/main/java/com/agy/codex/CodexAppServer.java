@@ -29,7 +29,7 @@ import java.util.concurrent.atomic.AtomicLong;
 public final class CodexAppServer implements Closeable {
     private static final String TAG = "CodexAppServer";
     private final AtomicLong nextId = new AtomicLong(1);
-    private final ExecutorService readerExecutor = Executors.newSingleThreadExecutor();
+    private final ExecutorService readerExecutor = Executors.newFixedThreadPool(3);
     private final Object writeLock = new Object();
 
     private volatile Process process;
