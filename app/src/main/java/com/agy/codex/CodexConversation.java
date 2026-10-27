@@ -16,6 +16,7 @@ import java.io.IOException;
 public final class CodexConversation implements CodexAppServer.Listener {
     public interface Listener {
         void onReady();
+        void onThreadStarted(String threadId);
         void onAssistantText(String delta);
         void onTurnFinished(String status);
         void onProtocolMessage(JSONObject message);
@@ -83,19 +84,28 @@ public final class CodexConversation implements CodexAppServer.Listener {
         if (current == null || message == null) return;
         try {
             long id = message.optLong("id", -1L);
-            if (id == initializeId && message.has("result") && !message.has("error")) {
+            if (id == initializeId) {
                 initializeId = -1L;
-                current.onReady();
-            } else if (id == startThreadId && message.has("result") && !message.has("error")) {
-                JSONObject result = message.getJSONObject("result");
-                JSONObject thread = result.optJSONObject("thread");
-                String receivedId = thread == null ? result.optString("id", "") : thread.optString("id", "");
-                if (receivedId.isEmpty()) {
-                    current.onError("Codex did not return a thread ID");
+                if (message.has("result") && !message.has("error")) {
+                    current.onReady();
                 } else {
-                    threadId = receivedId;
+                    current.onError("Codex initialization failed");
                 }
+            } else if (id == startThreadId) {
                 startThreadId = -1L;
+                if (message.has("result") && !message.has("error")) {
+                    JSONObject result = message.getJSONObject("result");
+                    JSONObject thread = result.optJSONObject("thread");
+                    String receivedId = thread == null ? result.optString("id", "") : thread.optString("id", "");
+                    if (receivedId.isEmpty()) {
+                        current.onError("Codex did not return a thread ID");
+                    } else {
+                        threadId = receivedId;
+                        current.onThreadStarted(receivedId);
+                    }
+                } else {
+                    current.onError("Codex could not start a thread");
+                }
             } else if (id == activeTurnId && message.has("error")) {
                 activeTurnId = -1L;
                 current.onError("Codex rejected the turn request");
