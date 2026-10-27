@@ -18,13 +18,26 @@ This document records the first compatibility pass for the Codex-backed Antigrav
 5. Store authentication only in the app-private directory with restrictive permissions, and never print tokens in logs.
 6. Add a GitHub Actions workflow that builds and tests the adapter independently before packaging it into the APK.
 
+## Verified on-device results (2026-10-27)
+
+Using the official `codex-aarch64-unknown-linux-musl` release binary in Termux on Android 15 / ARM64:
+
+- `codex --version` succeeds and reports `codex-cli 0.164.0`.
+- `codex app-server --listen stdio://` starts and returns a successful JSON-RPC-style `initialize` result.
+- `thread/start` returns a thread object with a thread ID, the Termux working directory, `modelProvider: openai`, and the requested `read-only` sandbox policy.
+- App Server emits a warning that it cannot find system `bubblewrap` and will use its bundled bubblewrap. Actual sandbox enforcement and command execution have not been verified.
+- No ChatGPT login flow, model turn, streaming, tool approval, or Android APK integration has been verified yet.
+
+These results prove basic CLI execution and App Server protocol compatibility in Termux only. They do not prove the executable can be bundled and launched by the Android app process.
+
 ## Critical compatibility checks
 
-- Determine whether an official Codex CLI/App Server release can run on-device with the project's Android/ARM64 runtime constraints.
-- Verify login/redirect completion from a mobile external browser.
+- Determine whether an official Codex CLI/App Server release can run on-device with the project's Android/ARM64 runtime constraints, including bundled executable extraction and Android process restrictions.
+- Verify login/redirect completion from a mobile external browser using Codex's official auth flow.
 - Verify streaming, cancellation, tool approvals, workspace scoping, file edits, command execution, and recovery after process death.
 - Confirm that Codex's supported sign-in entitlement and usage limits match the user's ChatGPT plan. Cloud-only functionality must not be assumed available.
+- Verify sandbox behavior on Android before enabling any model-generated command execution.
 
 ## Current status
 
-Planning only. No production engine is replaced by this commit. The APK must not be described as Codex-ready until Android runtime and UI adapter tests pass.
+Experimental protocol feasibility only. No production engine is replaced by this commit. The APK must not be described as Codex-ready until Android app-process runtime, official login, and UI adapter tests pass.
