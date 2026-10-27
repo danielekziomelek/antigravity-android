@@ -1,0 +1,119 @@
+name: Verify official Codex ARM64 App Server
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex-android-experiment]
+    paths:
+      - ".github/workflows/codex-arm64-smoke.yml"
+      - "app/src/main/java/com/agy/codex/**"
+
+permissions:
+  contents: read
+
+jobs:
+  arm64-smoke:
+    # ARM64 runner verifies the official Linux ARM64 artifact itself.
+    # This is not an Android/Bionic device test.
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 10
+    steps:
+      - name: Download latest official Codex Linux ARM64 release
+        shell: bash
+        run: |
+          set -euo pipefail
+          api="https://api.github.com/repos/openai/codex/releases/latest"
+          curl --fail --silent --show-error --location "$api" -o release.json
+          asset_url="$(jq -r '.assets[] | select(.name == "codex-aarch64-unknown-linux-musl.tar.gz") | .browser_download_url' release.json | head -n1)"
+          if [[ -z "$asset_url" || "$asset_url" == "null" ]]; then
+            echo "Could not find codex-aarch64-unknown-linux-musl.tar.gz in latest release" >&2
+            jq -r '.tag_name, (.assets[].name)' release.json
+            exit 1
+          fi
+          printf 'Selected official asset: %s\n' "$asset_url"
+          curl --fail --silent --show-error --location "$asset_url" -o codex-arm64.tar.gz
+          tar -tzf codex-arm64.tar.gz
+          mkdir codex-extracted
+          tar -xzf codex-arm64.tar.gz -C codex-extracted
+          binary="$(find codex-extracted -maxdepth 3 -type f -name 'codex-aarch64-unknown-linux-musl' -print -quit)"
+          if [[ -z "$binary" ]]; then
+            binary="$(find codex-extracted -maxdepth 3 -type f -name 'codex' -print -quit)"
+          fi
+          test -n "$binary"
+          chmod +x "$binary"
+          echo "CODEX_BIN=$PWD/$binary" >> "$GITHUB_ENV"
+
+      - name: Verify executable and App Server command
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$CODEX_BIN" --version
+          "$CODEX_BIN" app-server --help
+
+      - name: Smoke-test App Server initialize handshake (no login required)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import os
+          import select
+          import subprocess
+          import sys
+          import time
+
+          binary = os.environ["CODEX_BIN"]
+          proc = subprocess.Popen(
+              [binary, "app-server", "--listen", "stdio://"],
+              stdin=subprocess.PIPE,
+              stdout=subprocess.PIPE,
+              stderr=subprocess.PIPE,
+              text=True,
+              bufsize=1,
+          )
+
+          def read_json_line(timeout_seconds):
+              ready, _, _ = select.select([proc.stdout], [], [], timeout_seconds)
+              if not ready:
+                  raise RuntimeError("Timed out waiting for App Server JSON response")
+              line = proc.stdout.readline()
+              if not line:
+                  err = proc.stderr.read(4000) if proc.poll() is not None else ""
+                  raise RuntimeError("App Server closed stdout unexpectedly: " + err)
+              try:
+                  return json.loads(line)
+              except json.JSONDecodeError as exc:
+                  raise RuntimeError("App Server stdout was not JSONL: " + repr(line[:300])) from exc
+
+          try:
+              init = {
+                  "id": 1,
+                  "method": "initialize",
+                  "params": {
+                      "clientInfo": {
+                          "name": "antigravity_android_smoke",
+                          "title": "Antigravity Android smoke test",
+                          "version": "0.1.0"
+                      }
+                  }
+              }
+              proc.stdin.write(json.dumps(init) + "\n")
+              proc.stdin.flush()
+              response = read_json_line(10)
+              if response.get("id") != 1 or "result" not in response or "error" in response:
+                  raise RuntimeError("Initialize request failed: " + json.dumps(response)[:1000])
+
+              proc.stdin.write(json.dumps({"method": "initialized", "params": {}}) + "\n")
+              proc.stdin.flush()
+              time.sleep(0.5)
+              if proc.poll() is not None:
+                  raise RuntimeError("App Server exited after initialized notification")
+              print("PASS: initialize response received and initialized notification accepted")
+          finally:
+              proc.terminate()
+              try:
+                  proc.wait(timeout=3)
+              except subprocess.TimeoutExpired:
+                  proc.kill()
+                  proc.wait(timeout=3)
+          PY

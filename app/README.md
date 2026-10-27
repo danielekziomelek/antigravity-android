@@ -176,3 +176,49 @@ graph TD
 - **Интеграция `ExecHandler` с `rish` (ИСПРАВЛЕНО):** В `ExecHandler` реализован автоматический поиск пути к бинарнику `rish` (проверка `$PREFIX/bin/rish`, `files/runtime/bin/rish`), обязательная передача `RISH_APPLICATION_ID` (`context.getPackageName()`) для авторизации Shizuku и сброс потенциально конфликтующего `LD_LIBRARY_PATH`.
 - **Хардкод `/storage/emulated/0/` (ИСПРАВЛЕНО):** В `DocumentsContractHelper` и `LogExporter` жестко прописанный путь первичного пользователя заменен на `Environment.getExternalStorageDirectory().getAbsolutePath()`, гарантируя корректную работу в рабочих профилях (Work Profile) и для мультипользовательских окружений (`/storage/emulated/<userId>/`).
 - **Уязвимость `AppFileProvider` (ИСПРАВЛЕНО):** В `getFileForUri` добавлена проверка канонического пути (`file.getCanonicalPath()`) против разрешенных каталогов песочницы (`filesDir`, `cacheDir`, `dataDir`, `getExternalStorageDirectory()`, `getExternalFilesDir()`), защищающая от атак типа Path Traversal (`../`).
+
+
+---
+
+## Experimental Codex backend transport
+
+The branch `codex-android-experiment` adds `com.agy.codex.CodexAppServer`, a small Java transport wrapper for the official Codex App Server's newline-delimited JSON protocol.
+
+- Starts an explicitly supplied executable directly (no shell interpolation) using `codex app-server --listen stdio://`.
+- Reads JSON messages from stdout and drains stderr without logging raw diagnostic lines.
+- Exposes request/notification methods and the required `initialize` handshake.
+- Uses a listener so a future host/controller can forward streamed events to the UI.
+
+**This is an isolated prototype, not yet an active engine.** The current WebView bundle expects Antigravity-specific ConnectRPC methods and cannot consume Codex App Server messages directly. The prototype is not yet wired into `CoreServerService`, has no first-run installer or ChatGPT OAuth UI, and does not bundle a Codex executable. Keep the Gemini core as the working default.
+
+Before enabling this backend, the next steps are to test a supported ARM64 Codex distribution in the Android/glibc runtime, implement the initialize-response → `initialized` handshake in a controller, add thread/turn lifecycle and approval handling, and build a protocol adapter for the existing UI. Do not reuse or scrape the ChatGPT app's private session; use Codex's documented sign-in flow.
+
+Protocol reference: https://learn.chatgpt.com/docs/app-server
+
+
+## Experimental Codex adapter
+
+The branch `codex-android-experiment` now includes two isolated Java primitives under
+`com.agy.codex`:
+
+- `CodexAppServer`: launches a caller-provided executable and transports newline-delimited JSON over stdio.
+- `CodexConversation`: sends the `initialize`, `thread/start`, and `turn/start` requests and forwards assistant text deltas and turn completion events.
+
+These classes are not wired into `CoreServerService`, the WebView, or the existing Gemini ConnectRPC client. No Codex binary is bundled or installed by this change, and no ChatGPT sign-in flow is implemented. The Android API compile workflow is a source-level check only; it does not validate execution on-device or authentication.
+
+
+### Official Codex ARM64 runtime smoke test
+
+The workflow `.github/workflows/codex-arm64-smoke.yml` downloads the latest official
+`codex-aarch64-unknown-linux-musl.tar.gz` release from `openai/codex` and checks
+that the executable starts and exposes `app-server --help` on a Linux ARM64 runner.
+This validates the upstream Linux ARM64 binary, not Android/Bionic compatibility.
+The app still needs a verified runtime installation path, official ChatGPT sign-in
+and callback handling, and integration with the existing WebView/CoreServerService.
+
+
+The experimental `CodexConversation` adapter also exposes the official App Server
+ChatGPT browser and device-code login requests, account state updates, and login
+completion notifications. The host UI still must open the returned URL or display
+the device code, and the App Server must be launched with a compatible runtime.
+No OAuth tokens are extracted from another app or stored by this adapter.
