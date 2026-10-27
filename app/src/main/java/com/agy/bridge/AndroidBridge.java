@@ -157,6 +157,24 @@ public final class AndroidBridge {
     }
 
     @JavascriptInterface
+    public String codexLogin(String token) {
+        if (!matchesNativeBridgeToken(token)) return codexJson("error", "Invalid native bridge token");
+        CodexAppServer server = codexServer;
+        if (server == null) return codexJson("error", "Codex server is not running");
+        server.startChatGptLogin();
+        return codexJson("status", "login_requested");
+    }
+
+    @JavascriptInterface
+    public String codexStartThread(String token) {
+        if (!matchesNativeBridgeToken(token)) return codexJson("error", "Invalid native bridge token");
+        CodexAppServer server = codexServer;
+        if (server == null) return codexJson("error", "Codex server is not running");
+        server.startThread();
+        return codexJson("status", "thread_start_requested");
+    }
+
+    @JavascriptInterface
     public String codexSendMessage(String token, String message) {
         if (!matchesNativeBridgeToken(token)) return codexJson("error", "Invalid native bridge token");
         CodexAppServer server = codexServer;
