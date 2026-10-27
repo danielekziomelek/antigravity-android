@@ -183,7 +183,7 @@ public final class AndroidBridge {
 
     private void emitCodexEvent(String type, JSONObject data) {
         MainActivity act = activityRef != null ? activityRef.get() : MainActivity.activeActivity;
-        if (act != null) act.dispatchCodexEvent(type, data);
+        if (act != null) act.dispatchCodexEvent(new JSONObjectSafe().put("type", type).put("data", data).value().toString());
     }
 
     private static final class JSONObjectSafe {
