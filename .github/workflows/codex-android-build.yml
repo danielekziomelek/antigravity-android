@@ -10,6 +10,7 @@ on:
       - "app/src/main/java/com/agy/bridge/**"
       - "app/src/main/java/com/agy/ui/MainActivity.java"
       - "app/src/main/java/com/agy/ui/webview/AppHtmlInjector.java"
+      - "app/src/main/java/com/agy/ui/webview/AppLoader.java"
       - "scripts/termux-codex-bridge.py"
       - "modules/builder/**"
       - "build.sh"
