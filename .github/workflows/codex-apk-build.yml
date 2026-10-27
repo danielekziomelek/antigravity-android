@@ -50,13 +50,16 @@ jobs:
           mkdir -p tools
           # API 35 is needed for the existing Android 12+ splash-screen theme attributes.
           curl --fail --silent --show-error --location \
-            https://github.com/Sable/android-platforms/raw/master/android-35/android.jar \
+            https://raw.githubusercontent.com/Sable/android-platforms/master/android-35/android.jar \
             --output tools/android.jar
           curl --fail --silent --show-error --location \
             https://dl.google.com/dl/android/maven2/com/android/tools/r8/8.2.42/r8-8.2.42.jar \
             --output tools/r8.jar
           test -s tools/android.jar
           test -s tools/r8.jar
+          file tools/android.jar
+          unzip -t tools/android.jar >/dev/null
+          unzip -t tools/r8.jar >/dev/null
           if [[ ! -f tools/debug.keystore ]]; then
             keytool -genkey -v -keystore tools/debug.keystore \
               -storepass android -alias androiddebugkey -keypass android \
