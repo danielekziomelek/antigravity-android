@@ -24,3 +24,15 @@ This experimental bridge does not yet install the binary or provision an authent
 ## Security
 
 All mutating bridge methods require the per-document native bridge token injected into the trusted app document. Do not expose the token to remote content or forward these methods to untrusted iframes.
+
+
+## Current login/thread flow
+
+The JavaScript bridge now exposes:
+
+- `window.__AG_CODEX__.start()` — starts App Server and emits `ready` when initialize succeeds.
+- `window.__AG_CODEX__.login()` — sends `account/login/start` with `type: "chatgpt"`; listen for `login_started` and `login_completed` events.
+- `window.__AG_CODEX__.startThread()` — explicitly starts a thread after login or when an existing authenticated session is available.
+- `window.__AG_CODEX__.send(text)` — sends a message once a thread has started.
+
+The bridge intentionally no longer starts a thread automatically at initialize time, because that can race ahead of an interactive login. The login event currently surfaces the App Server result to the trusted UI; a user-facing sign-in screen/browser handoff still needs to be implemented and tested.
