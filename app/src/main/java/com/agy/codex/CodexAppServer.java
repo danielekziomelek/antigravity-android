@@ -297,10 +297,21 @@ public final class CodexAppServer implements AutoCloseable {
         if (p != null) {
             try { p.getOutputStream().close(); } catch (Exception ignored) {}
             p.destroy();
+            long deadline = System.currentTimeMillis() + 2000L;
+            while (System.currentTimeMillis() < deadline) {
+                try {
+                    p.exitValue();
+                    break; // process has exited
+                } catch (IllegalThreadStateException stillRunning) {
+                    try { Thread.sleep(50L); } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+                }
+            }
             try {
-                if (!p.waitFor(2, java.util.concurrent.TimeUnit.SECONDS)) p.destroyForcibly();
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
+                p.exitValue();
+            } catch (IllegalThreadStateException stillRunning) {
                 p.destroyForcibly();
             }
         }
