@@ -20,6 +20,7 @@ public final class TermuxCodexClient implements AutoCloseable {
     private final String bearer;
     private final Listener listener;
     private final ExecutorService io = Executors.newSingleThreadExecutor();
+    private final ExecutorService actions = Executors.newSingleThreadExecutor();
     private final AtomicBoolean running = new AtomicBoolean(false);
     private volatile long lastEventId = 0;
 
@@ -57,7 +58,7 @@ public final class TermuxCodexClient implements AutoCloseable {
     }
 
     public void action(String name, String text) {
-        io.execute(() -> {
+        actions.execute(() -> {
             try {
                 JSONObject body = new JSONObject().put("action", name);
                 if (text != null) body.put("text", text);
@@ -110,8 +111,9 @@ public final class TermuxCodexClient implements AutoCloseable {
     }
     @Override public void close() {
         running.set(false);
-        io.execute(() -> { try { actionNow("stop"); } catch (Exception ignored) {} });
-        io.shutdown();
+        actions.execute(() -> { try { actionNow("stop"); } catch (Exception ignored) {} });
+        io.shutdownNow();
+        actions.shutdown();
     }
 
     private static final class JSONObjectSafe {
