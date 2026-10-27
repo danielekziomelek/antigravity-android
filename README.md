@@ -103,6 +103,7 @@ antigravity/
 ├── docs/assets/        # Screenshots, banners, and diagrams
 ├── build.sh            # Root APK build script
 └── test_all_modules.sh # Test suite for all 6 modules
+testowy tekst
 ```
 
 > [!TIP]
