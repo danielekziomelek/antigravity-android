@@ -11,8 +11,6 @@ import org.json.JSONObject;
 public final class AppHtmlInjector {
 
     private static final String TAG = "WebViewHost";
-
-    /** Web layer generates the ready signal under generated/patches. */
     private static final String READY_SCRIPT = "./generated/patches/startup_ready.js";
     private static final String CSP = "default-src 'self' https: data: blob:; "
             + "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; "
@@ -47,16 +45,14 @@ public final class AppHtmlInjector {
                     + JSONObject.quote(bridge.getBlobBridgeToken()) + ";"
                     + "window.AndroidBridge=window.Android;"
                     + "window.__AG_CODEX__={"
-                    + "start:function(){if(!window.Android||!Android.codexStart)return JSON.stringify({error:'native bridge unavailable'});try{return JSON.parse(Android.codexStart(window.__AG_NATIVE_BRIDGE_TOKEN__));}catch(e){return {error:String(e)};}},"
-                    + "login:function(){if(!window.Android||!Android.codexLogin)return {error:'native bridge unavailable'};try{return JSON.parse(Android.codexLogin(window.__AG_NATIVE_BRIDGE_TOKEN__));}catch(e){return {error:String(e)};}},
-                    + "startThread:function(){if(!window.Android||!Android.codexStartThread)return {error:'native bridge unavailable'};try{return JSON.parse(Android.codexStartThread(window.__AG_NATIVE_BRIDGE_TOKEN__));}catch(e){return {error:String(e)};}},
-                    + "send:function(text){if(!window.Android||!Android.codexSendMessage)return JSON.stringify({error:'native bridge unavailable'});try{return JSON.parse(Android.codexSendMessage(window.__AG_NATIVE_BRIDGE_TOKEN__,String(text)));}catch(e){return {error:String(e)};}},"
+                    + "start:function(){if(!window.Android||!Android.codexStart)return {error:'native bridge unavailable'};try{return JSON.parse(Android.codexStart(window.__AG_NATIVE_BRIDGE_TOKEN__));}catch(e){return {error:String(e)};}},"
+                    + "login:function(){if(!window.Android||!Android.codexLogin)return {error:'native bridge unavailable'};try{return JSON.parse(Android.codexLogin(window.__AG_NATIVE_BRIDGE_TOKEN__));}catch(e){return {error:String(e)};}},"
+                    + "startThread:function(){if(!window.Android||!Android.codexStartThread)return {error:'native bridge unavailable'};try{return JSON.parse(Android.codexStartThread(window.__AG_NATIVE_BRIDGE_TOKEN__));}catch(e){return {error:String(e)};}},"
+                    + "send:function(text){if(!window.Android||!Android.codexSendMessage)return {error:'native bridge unavailable'};try{return JSON.parse(Android.codexSendMessage(window.__AG_NATIVE_BRIDGE_TOKEN__,String(text)));}catch(e){return {error:String(e)};}},"
                     + "stop:function(){if(window.Android&&Android.codexStop)Android.codexStop(window.__AG_NATIVE_BRIDGE_TOKEN__);}"
                     + "};"
                     + "window.dialog={showOpenDialog:function(){return new Promise(function(resolve){window.__onDirectoryPicked=function(path){resolve(path);};if(window.Android&&typeof window.Android.openDirectoryPicker==='function'){window.Android.openDirectoryPicker();}else{resolve(null);}});}};"
                     + "})();</script>"
-                    // Signals first paint back to native (AndroidBridge.onUiReady)
-                    // so the splash is dismissed on real content, not a timer.
                     + "<script src=\"" + READY_SCRIPT + "\"></script>";
         } catch (Exception e) {
             Log.w(TAG, "config injection failed", e);
@@ -65,8 +61,7 @@ public final class AppHtmlInjector {
         int head = html.indexOf("<head>");
         if (head >= 0) {
             int at = head + "<head>".length();
-            return html.substring(0, at) + "
-" + boot + html.substring(at);
+            return html.substring(0, at) + "\n" + boot + html.substring(at);
         }
         return boot + html;
     }
