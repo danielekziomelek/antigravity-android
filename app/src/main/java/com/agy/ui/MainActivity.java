@@ -18,7 +18,8 @@ import android.content.ClipData;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebView;
-import android.widget.FrameLayout;\nimport org.json.JSONObject;
+import android.widget.FrameLayout;
+import org.json.JSONObject;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -248,6 +249,7 @@ public class MainActivity extends Activity
         }
         AppLifecycle.destroy(handler);
         if (androidBridge != null) {
+            androidBridge.codexStop(androidBridge.getBlobBridgeToken());
             androidBridge.setActivity(null);
         }
         if (rootLayout != null) {
