@@ -33,7 +33,9 @@ public final class CodexAppServer implements AutoCloseable {
     private static final String TAG = "CodexAppServer";
 
     public interface Listener {
-        void onReady(JSONObject initializeResult);\n        void onLoginStarted(JSONObject loginResult);\n        void onLoginCompleted(JSONObject loginResult);
+        void onReady(JSONObject initializeResult);
+        void onLoginStarted(JSONObject loginResult);
+        void onLoginCompleted(JSONObject loginResult);
         void onThreadStarted(String threadId);
         void onMessageDelta(String threadId, String turnId, String itemId, String delta);
         void onTurnCompleted(String threadId, JSONObject turn);
@@ -110,7 +112,14 @@ public final class CodexAppServer implements AutoCloseable {
         });
     }
 
-    public void startChatGptLogin() {\n        if (closed) { fail("Codex App Server is closed"); return; }\n        try {\n            sendRequest("account/login/start", new JSONObject().put("type", "chatgpt"), "account/login/start");\n        } catch (JSONException e) { fail("Could not build account/login/start request"); }\n    }\n\n    public void startThread() {
+    public void startChatGptLogin() {
+        if (closed) { fail("Codex App Server is closed"); return; }
+        try {
+            sendRequest("account/login/start", new JSONObject().put("type", "chatgpt"), "account/login/start");
+        } catch (JSONException e) { fail("Could not build account/login/start request"); }
+    }
+
+    public void startThread() {
         if (closed) {
             fail("Codex App Server is closed");
             return;
@@ -228,7 +237,9 @@ public final class CodexAppServer implements AutoCloseable {
             if ("initialize".equals(request)) {
                 sendNotification("initialized", new JSONObject());
                 if (listener != null) listener.onReady(result);
-            } else if ("account/login/start".equals(request)) {\n                if (listener != null) listener.onLoginStarted(result);\n            } else if ("thread/start".equals(request)) {
+            } else if ("account/login/start".equals(request)) {
+                if (listener != null) listener.onLoginStarted(result);
+            } else if ("thread/start".equals(request)) {
                 JSONObject thread = result.optJSONObject("thread");
                 threadId = thread == null ? null : thread.optString("id", null);
                 if (threadId == null || threadId.isEmpty()) {
@@ -243,7 +254,9 @@ public final class CodexAppServer implements AutoCloseable {
         String method = message.optString("method", "");
         JSONObject params = message.optJSONObject("params");
         if (params == null) params = new JSONObject();
-        if ("account/login/completed".equals(method)) {\n            if (listener != null) listener.onLoginCompleted(params);\n        } else if ("item/agentMessage/delta".equals(method)) {
+        if ("account/login/completed".equals(method)) {
+            if (listener != null) listener.onLoginCompleted(params);
+        } else if ("item/agentMessage/delta".equals(method)) {
             if (listener != null) listener.onMessageDelta(
                     params.optString("threadId"), params.optString("turnId"),
                     params.optString("itemId"), params.optString("delta"));
