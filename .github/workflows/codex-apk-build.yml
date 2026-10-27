@@ -48,9 +48,9 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p tools
-          # API 35 is needed for the existing Android 12+ splash-screen theme attributes.
+          # API 31 is the first platform with the existing Android 12 splash-screen theme attributes and avoids newer resource-table formats unsupported by the legacy aapt used here.
           curl --fail --silent --show-error --location \
-            https://raw.githubusercontent.com/Sable/android-platforms/master/android-35/android.jar \
+            https://raw.githubusercontent.com/Sable/android-platforms/master/android-31/android.jar \
             --output tools/android.jar
           curl --fail --silent --show-error --location \
             https://dl.google.com/dl/android/maven2/com/android/tools/r8/8.2.42/r8-8.2.42.jar \
