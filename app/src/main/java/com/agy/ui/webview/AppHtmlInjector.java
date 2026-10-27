@@ -56,6 +56,7 @@ public final class AppHtmlInjector {
                     + "window.dialog={showOpenDialog:function(){return new Promise(function(resolve){window.__onDirectoryPicked=function(path){resolve(path);};if(window.Android&&typeof window.Android.openDirectoryPicker==='function'){window.Android.openDirectoryPicker();}else{resolve(null);}});}};"
                     + "})();</script>"
                     + codexPanelScript()
+                    + mainChatCodexScript()
                     + "<script src=\"" + READY_SCRIPT + "\"></script>";
         } catch (Exception e) {
             Log.w(TAG, "config injection failed", e);
@@ -67,6 +68,24 @@ public final class AppHtmlInjector {
             return html.substring(0, at) + "\n" + boot + html.substring(at);
         }
         return boot + html;
+    }
+
+    /**
+     * Routes the original composer to Codex after the authenticated Termux bridge is connected.
+     */
+    private static String mainChatCodexScript() {
+        return "<script>(function(){"
+                + "if(window.__AG_CODEX_MAIN_CHAT__)return;window.__AG_CODEX_MAIN_CHAT__=true;"
+                + "var box=null,reply='';"
+                + "function show(el){if(box&&box.isConnected)return;box=document.createElement('section');box.id='agy-codex-main-transcript';box.style.cssText='margin:8px 12px;padding:10px;border:1px solid #64748b66;border-radius:12px;background:var(--bg-card,rgba(20,24,35,.92));color:var(--text-primary,inherit);white-space:pre-wrap;overflow-wrap:anywhere;max-height:28vh;overflow:auto;font-size:14px';box.setAttribute('aria-live','polite');var host=el.closest('form')||el.parentElement||document.getElementById('root');if(host&&host.parentElement)host.parentElement.insertBefore(box,host);else document.body.appendChild(box);}"
+                + "function val(el){return el.isContentEditable?(el.innerText||el.textContent||'').trim():String(el.value||'').trim()}"
+                + "function clear(el){if(el.isContentEditable)el.textContent='';else el.value='';el.dispatchEvent(new Event('input',{bubbles:true}));}"
+                + "function send(el,e){if(!window.__AG_CODEX_CONNECTED__)return;var t=val(el);if(!t)return;e.preventDefault();e.stopPropagation();if(e.stopImmediatePropagation)e.stopImmediatePropagation();show(el);reply='';box.textContent='You: '+t+'\\n\\nCodex: ';try{var r=window.__AG_CODEX__.termuxAction('send',t);if(r&&r.error)box.textContent+='\\n[Bridge error] '+r.error;else clear(el);}catch(x){box.textContent+='\\n[Error] '+String(x)}}"
+                + "document.addEventListener('submit',function(e){var f=e.target;if(!f||!f.querySelector)return;var el=f.querySelector('textarea,[contenteditable=true],[role=textbox],input[type=text]');if(el)send(el,e)},true);"
+                + "document.addEventListener('keydown',function(e){var el=e.target;if(e.key!=='Enter'||e.shiftKey||e.isComposing||!el||!el.matches||!el.matches('textarea,[contenteditable=true],[role=textbox],input[type=text]')||el.closest('#agy-codex-panel'))return;if(window.__AG_CODEX_CONNECTED__)send(el,e)},true);"
+                + "document.addEventListener('click',function(e){if(!window.__AG_CODEX_CONNECTED__)return;var b=e.target&&e.target.closest?e.target.closest('button[type=submit],button[aria-label*=Send i],button[title*=Send i]'):null;if(!b||b.closest('#agy-codex-panel'))return;var f=b.closest('form')||b.parentElement;var el=f&&f.querySelector?f.querySelector('textarea,[contenteditable=true],[role=textbox],input[type=text]'):null;if(el)send(el,e)},true);"
+                + "window.addEventListener('agy-codex-event',function(e){var d=e.detail||{},v=d.data||{};if(d.type==='message_delta'&&box){reply+=String(v.delta||'');box.textContent='Codex: '+reply;box.scrollTop=box.scrollHeight}else if(d.type==='turn_completed'&&box){box.textContent+='\\n\\n[Codex turn completed]'}else if(d.type==='error'&&box){box.textContent+='\\n\\n[Codex error] '+String(v.message||'Unknown error')}});"
+                + "})();</script>";
     }
 
     /**
@@ -84,7 +103,7 @@ public final class AppHtmlInjector {
                 + "panel.innerHTML='<div style=\"display:flex;justify-content:space-between;align-items:center\"><strong>Codex App Server</strong><button id=\"agy-codex-close\">✕</button></div><div id=\"agy-codex-status\">Not started</div><input id=\"agy-codex-token\" autocomplete=\"off\" placeholder=\"Termux bearer token (paste from Termux)\"/><button id=\"agy-codex-connect\">Connect Termux</button><input id=\"agy-codex-project\" autocomplete=\"off\" placeholder=\"Project path in Termux (optional)\"/><div id=\"agy-codex-actions\"><button id=\"agy-codex-start\">Start</button><button id=\"agy-codex-login\">Login with ChatGPT</button><button id=\"agy-codex-thread\">New thread</button><button id=\"agy-codex-stop\">Stop</button></div><div id=\"agy-codex-log\">Codex runtime has not been started.</div><input id=\"agy-codex-input\" placeholder=\"Message Codex…\"/><button id=\"agy-codex-send\">Send</button>';"
                 + "function byId(id){return document.getElementById(id)}function log(s){var el=byId('agy-codex-log');el.textContent+=(el.textContent?'\\n':'')+String(s);el.scrollTop=el.scrollHeight}function status(s){byId('agy-codex-status').textContent=s}"
                 + "document.documentElement.appendChild(fab);document.documentElement.appendChild(panel);fab.onclick=function(){panel.style.display=panel.style.display==='block'?'none':'block'};byId('agy-codex-close').onclick=function(){panel.style.display='none'};"
-                + "var termuxConnected=false;byId('agy-codex-connect').onclick=function(){var secret=byId('agy-codex-token').value.trim();if(!secret){status('Token required');log('Paste the bearer token printed by the Termux bridge.');return}var result=window.__AG_CODEX__.connectTermux(secret);if(result&&result.error){status('Connection error');log(result.error)}else{termuxConnected=true;byId('agy-codex-token').value='';status('Connecting to Termux…');log('Connecting to 127.0.0.1:8765')}}"
+                + "var termuxConnected=false;byId('agy-codex-connect').onclick=function(){var secret=byId('agy-codex-token').value.trim();if(!secret){status('Token required');log('Paste the bearer token printed by the Termux bridge.');return}var result=window.__AG_CODEX__.connectTermux(secret);if(result&&result.error){status('Connection error');log(result.error)}else{termuxConnected=true;window.__AG_CODEX_CONNECTED__=true;byId('agy-codex-token').value='';status('Connecting to Termux…');log('Connecting to 127.0.0.1:8765')}}"
                 + "function call(name,arg){if(termuxConnected){var map={start:'start',login:'login',startThread:'thread',send:'send',stop:'stop'};var result=window.__AG_CODEX__.termuxAction(map[name]||name,typeof arg==='string'?arg:'');if(result&&result.error){status('Error');log(result.error)}else if(result&&result.status){status(result.status);log(name+': '+result.status)}return result}if(!window.__AG_CODEX__||!window.__AG_CODEX__[name]){status('Bridge unavailable');log('Native Codex bridge is unavailable.');return null}var result=window.__AG_CODEX__[name](arg);if(result&&result.error){status('Error');log(result.error)}else if(result&&result.status){status(result.status);log(name+': '+result.status)}return result}"
                 + "byId('agy-codex-start').onclick=function(){call('start')};byId('agy-codex-login').onclick=function(){call('login')};byId('agy-codex-thread').onclick=function(){if(termuxConnected){var p=byId('agy-codex-project').value.trim();var result=window.__AG_CODEX__.termuxAction('thread',p);if(result&&result.error){status('Error');log(result.error)}else{status('Starting project thread');log('Project: '+(p||'Termux current directory'))}}else{call('startThread')}};byId('agy-codex-stop').onclick=function(){call('stop');status('Stopped')};"
                 + "function send(){var el=byId('agy-codex-input'),v=el.value;if(!v.trim())return;call('send',v);el.value=''}byId('agy-codex-send').onclick=send;byId('agy-codex-input').addEventListener('keydown',function(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}});"
