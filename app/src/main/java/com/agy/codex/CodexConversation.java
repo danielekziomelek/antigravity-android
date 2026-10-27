@@ -34,6 +34,7 @@ public final class CodexConversation implements CodexAppServer.Listener {
     private volatile long loginRequestId = -1L;
     private volatile long accountReadRequestId = -1L;
     private volatile String threadId;
+    private volatile boolean initialized;
 
     public CodexConversation(CodexAppServer server, Listener listener) {
         if (server == null) throw new IllegalArgumentException("server is required");
@@ -55,6 +56,7 @@ public final class CodexConversation implements CodexAppServer.Listener {
 
     /** Begin official ChatGPT OAuth in the system browser. */
     public void startChatGptBrowserLogin() throws IOException, JSONException {
+        requireInitialized();
         JSONObject params = new JSONObject();
         params.put("type", "chatgpt");
         params.put("useHostedLoginSuccessPage", true);
@@ -64,6 +66,7 @@ public final class CodexConversation implements CodexAppServer.Listener {
 
     /** Begin official ChatGPT device-code login; show the returned code to the user. */
     public void startChatGptDeviceCodeLogin() throws IOException, JSONException {
+        requireInitialized();
         JSONObject params = new JSONObject();
         params.put("type", "chatgptDeviceCode");
         loginRequestId = server.sendRequest("account/login/start", params);
@@ -71,11 +74,13 @@ public final class CodexConversation implements CodexAppServer.Listener {
 
     /** Query account/plan state reported by Codex App Server. */
     public void refreshAccountState() throws IOException, JSONException {
+        requireInitialized();
         accountReadRequestId = server.sendRequest("account/read", new JSONObject());
     }
 
     /** Start a fresh Codex thread after initialize has succeeded. */
     public void startThread(String cwd, String model) throws IOException, JSONException {
+        requireInitialized();
         if (threadId != null) throw new IllegalStateException("A Codex thread is already active");
         JSONObject params = new JSONObject();
         if (cwd != null && !cwd.trim().isEmpty()) params.put("cwd", cwd);
@@ -85,6 +90,8 @@ public final class CodexConversation implements CodexAppServer.Listener {
 
     /** Submit a plain-text user message to the active thread. */
     public void sendMessage(String text) throws IOException, JSONException {
+        requireInitialized();
+        if (activeTurnId > 0) throw new IllegalStateException("A Codex turn is already active");
         if (threadId == null) throw new IllegalStateException("Start a Codex thread first");
         if (text == null || text.trim().isEmpty()) throw new IllegalArgumentException("Message is empty");
 
@@ -100,6 +107,10 @@ public final class CodexConversation implements CodexAppServer.Listener {
         activeTurnId = server.sendRequest("turn/start", params);
     }
 
+    private void requireInitialized() {
+        if (!initialized) throw new IllegalStateException("Initialize Codex App Server first");
+    }
+
     public String getThreadId() {
         return threadId;
     }
@@ -113,8 +124,10 @@ public final class CodexConversation implements CodexAppServer.Listener {
             if (initializeId > 0 && id == initializeId) {
                 initializeId = -1L;
                 if (message.has("result") && !message.has("error")) {
+                    initialized = true;
                     current.onReady();
                 } else {
+                    initialized = false;
                     current.onError("Codex initialization failed");
                 }
             } else if (startThreadId > 0 && id == startThreadId) {
