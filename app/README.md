@@ -205,3 +205,13 @@ The branch `codex-android-experiment` now includes two isolated Java primitives 
 - `CodexConversation`: sends the `initialize`, `thread/start`, and `turn/start` requests and forwards assistant text deltas and turn completion events.
 
 These classes are not wired into `CoreServerService`, the WebView, or the existing Gemini ConnectRPC client. No Codex binary is bundled or installed by this change, and no ChatGPT sign-in flow is implemented. The Android API compile workflow is a source-level check only; it does not validate execution on-device or authentication.
+
+
+### Official Codex ARM64 runtime smoke test
+
+The workflow `.github/workflows/codex-arm64-smoke.yml` downloads the latest official
+`codex-aarch64-unknown-linux-musl.tar.gz` release from `openai/codex` and checks
+that the executable starts and exposes `app-server --help` on a Linux ARM64 runner.
+This validates the upstream Linux ARM64 binary, not Android/Bionic compatibility.
+The app still needs a verified runtime installation path, official ChatGPT sign-in
+and callback handling, and integration with the existing WebView/CoreServerService.
