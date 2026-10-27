@@ -215,3 +215,10 @@ that the executable starts and exposes `app-server --help` on a Linux ARM64 runn
 This validates the upstream Linux ARM64 binary, not Android/Bionic compatibility.
 The app still needs a verified runtime installation path, official ChatGPT sign-in
 and callback handling, and integration with the existing WebView/CoreServerService.
+
+
+The experimental `CodexConversation` adapter also exposes the official App Server
+ChatGPT browser and device-code login requests, account state updates, and login
+completion notifications. The host UI still must open the returned URL or display
+the device code, and the App Server must be launched with a compatible runtime.
+No OAuth tokens are extracted from another app or stored by this adapter.
