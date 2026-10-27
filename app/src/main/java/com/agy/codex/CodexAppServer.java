@@ -119,8 +119,10 @@ public final class CodexAppServer implements Closeable {
         clientInfo.put("version", "0.1.0");
         JSONObject params = new JSONObject();
         params.put("clientInfo", clientInfo);
+        long expectedId = nextId.get();
+        initializeRequestId = expectedId;
         long id = sendRequest("initialize", params);
-        initializeRequestId = id;
+        if (id != expectedId) initializeRequestId = -1L;
         return id;
     }
 
