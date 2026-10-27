@@ -1,0 +1,95 @@
+name: Codex branch APK build
+
+on:
+  push:
+    branches: [codex-android-experiment]
+  workflow_dispatch:
+    inputs:
+      vendor_url:
+        description: Optional direct URL to vendor inputs archive
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  build-apk:
+    name: Build experimental APKs
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      VENDOR_URL: ${{ inputs.vendor_url || secrets.VENDOR_DOWNLOAD_URL }}
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          lfs: true
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Android packaging tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y aapt zipalign apksigner file zip unzip gzip
+
+      - name: Prepare Android SDK stubs and D8
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p tools
+          curl --fail --silent --show-error --location \
+            https://github.com/Sable/android-platforms/raw/master/android-28/android.jar \
+            --output tools/android.jar
+          curl --fail --silent --show-error --location \
+            https://dl.google.com/dl/android/maven2/com/android/tools/r8/8.2.42/r8-8.2.42.jar \
+            --output tools/r8.jar
+          test -s tools/android.jar
+          test -s tools/r8.jar
+          if [[ ! -f tools/debug.keystore ]]; then
+            keytool -genkey -v -keystore tools/debug.keystore \
+              -storepass android -alias androiddebugkey -keypass android \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -dname "CN=Android Debug,O=Android,C=US"
+          fi
+
+      - name: Download optional vendor inputs
+        if: env.VENDOR_URL != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p vendor
+          curl --fail --silent --show-error --location "$VENDOR_URL" --output vendor.tar.gz
+          tar -xzf vendor.tar.gz -C vendor
+          echo "AGY_HOME=$PWD/vendor" >> "$GITHUB_ENV"
+
+      - name: Build standard APK
+        run: bash build.sh --out "$PWD/dist/antigravity-codex-experiment.apk"
+
+      - name: Build region-bypass APK
+        run: bash build.sh --region-bypass --out "$PWD/dist/antigravity-codex-experiment-region-bypass.apk"
+
+      - name: Generate checksums
+        run: |
+          cd dist
+          sha256sum antigravity-codex-experiment.apk antigravity-codex-experiment-region-bypass.apk > SHA256SUMS.txt
+
+      - name: Upload experimental APK artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: codex-experiment-apks
+          if-no-files-found: error
+          path: |
+            dist/antigravity-codex-experiment.apk
+            dist/antigravity-codex-experiment-region-bypass.apk
+            dist/SHA256SUMS.txt
