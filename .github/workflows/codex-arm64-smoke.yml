@@ -1,0 +1,50 @@
+name: Verify official Codex ARM64 App Server
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex-android-experiment]
+    paths:
+      - ".github/workflows/codex-arm64-smoke.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  arm64-smoke:
+    # ARM64 runner verifies the official Linux ARM64 artifact itself.
+    # This is not an Android/Bionic device test.
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 10
+    steps:
+      - name: Download latest official Codex Linux ARM64 release
+        shell: bash
+        run: |
+          set -euo pipefail
+          api="https://api.github.com/repos/openai/codex/releases/latest"
+          curl --fail --silent --show-error --location "$api" -o release.json
+          asset_url="$(jq -r '.assets[] | select(.name == "codex-aarch64-unknown-linux-musl.tar.gz") | .browser_download_url' release.json | head -n1)"
+          if [[ -z "$asset_url" || "$asset_url" == "null" ]]; then
+            echo "Could not find codex-aarch64-unknown-linux-musl.tar.gz in latest release" >&2
+            jq -r '.tag_name, (.assets[].name)' release.json
+            exit 1
+          fi
+          printf 'Selected official asset: %s\n' "$asset_url"
+          curl --fail --silent --show-error --location "$asset_url" -o codex-arm64.tar.gz
+          tar -tzf codex-arm64.tar.gz
+          mkdir codex-extracted
+          tar -xzf codex-arm64.tar.gz -C codex-extracted
+          binary="$(find codex-extracted -maxdepth 2 -type f -name 'codex-aarch64-unknown-linux-musl' -print -quit)"
+          if [[ -z "$binary" ]]; then
+            binary="$(find codex-extracted -maxdepth 2 -type f -name 'codex' -print -quit)"
+          fi
+          test -n "$binary"
+          chmod +x "$binary"
+          echo "CODEX_BIN=$PWD/$binary" >> "$GITHUB_ENV"
+
+      - name: Verify executable and App Server command
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$CODEX_BIN" --version
+          "$CODEX_BIN" app-server --help
