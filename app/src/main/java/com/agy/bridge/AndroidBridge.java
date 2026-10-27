@@ -1,7 +1,15 @@
 package com.agy.bridge;
 
 import android.content.Context;
-import android.webkit.JavascriptInterface;\nimport android.util.Log;\n\nimport com.agy.codex.CodexAppServer;\n\nimport org.json.JSONException;\nimport org.json.JSONObject;\n\nimport java.io.File;
+import android.webkit.JavascriptInterface;
+import android.util.Log;
+
+import com.agy.codex.CodexAppServer;
+
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import java.io.File;
 
 import com.agy.runtime.RuntimeManager;
 import com.agy.shell.ShizukuBridge;
@@ -20,7 +28,9 @@ import java.security.SecureRandom;
  */
 public final class AndroidBridge {
 
-    private final Context appContext;\n    private final UiBridge ui = new UiBridge();\n    private volatile CodexAppServer codexServer;
+    private final Context appContext;
+    private final UiBridge ui = new UiBridge();
+    private volatile CodexAppServer codexServer;
     private final ThemeBridge themeBridge;
     private final EngineBridge engine;
     private final EngineConfigJson config;
@@ -29,7 +39,8 @@ public final class AndroidBridge {
 
     public AndroidBridge(Context context, RuntimeManager runtime,
                          ShizukuBridge shizuku, ThemeManager theme) {
-        Context appContext = context.getApplicationContext();\n        this.appContext = appContext;
+        Context appContext = context.getApplicationContext();
+        this.appContext = appContext;
         this.themeBridge = new ThemeBridge(theme);
         this.engine = new EngineBridge(runtime);
         this.config = new EngineConfigJson(appContext, runtime, engine, shizuku, themeBridge);
