@@ -176,3 +176,21 @@ graph TD
 - **Интеграция `ExecHandler` с `rish` (ИСПРАВЛЕНО):** В `ExecHandler` реализован автоматический поиск пути к бинарнику `rish` (проверка `$PREFIX/bin/rish`, `files/runtime/bin/rish`), обязательная передача `RISH_APPLICATION_ID` (`context.getPackageName()`) для авторизации Shizuku и сброс потенциально конфликтующего `LD_LIBRARY_PATH`.
 - **Хардкод `/storage/emulated/0/` (ИСПРАВЛЕНО):** В `DocumentsContractHelper` и `LogExporter` жестко прописанный путь первичного пользователя заменен на `Environment.getExternalStorageDirectory().getAbsolutePath()`, гарантируя корректную работу в рабочих профилях (Work Profile) и для мультипользовательских окружений (`/storage/emulated/<userId>/`).
 - **Уязвимость `AppFileProvider` (ИСПРАВЛЕНО):** В `getFileForUri` добавлена проверка канонического пути (`file.getCanonicalPath()`) против разрешенных каталогов песочницы (`filesDir`, `cacheDir`, `dataDir`, `getExternalStorageDirectory()`, `getExternalFilesDir()`), защищающая от атак типа Path Traversal (`../`).
+
+
+---
+
+## Experimental Codex backend transport
+
+The branch `codex-android-experiment` adds `com.agy.codex.CodexAppServer`, a small Java transport wrapper for the official Codex App Server's newline-delimited JSON protocol.
+
+- Starts an explicitly supplied executable directly (no shell interpolation) using `codex app-server --listen stdio://`.
+- Reads JSON messages from stdout and drains stderr without logging raw diagnostic lines.
+- Exposes request/notification methods and the required `initialize` handshake.
+- Uses a listener so a future host/controller can forward streamed events to the UI.
+
+**This is an isolated prototype, not yet an active engine.** The current WebView bundle expects Antigravity-specific ConnectRPC methods and cannot consume Codex App Server messages directly. The prototype is not yet wired into `CoreServerService`, has no first-run installer or ChatGPT OAuth UI, and does not bundle a Codex executable. Keep the Gemini core as the working default.
+
+Before enabling this backend, the next steps are to test a supported ARM64 Codex distribution in the Android/glibc runtime, implement the initialize-response → `initialized` handshake in a controller, add thread/turn lifecycle and approval handling, and build a protocol adapter for the existing UI. Do not reuse or scrape the ChatGPT app's private session; use Codex's documented sign-in flow.
+
+Protocol reference: https://learn.chatgpt.com/docs/app-server
