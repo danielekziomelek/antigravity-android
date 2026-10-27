@@ -49,6 +49,7 @@ jobs:
           name: codex-android-integration-build
           path: |
             dist/*.apk
-            build/
+            build/**/*.log
+            build/*.log
           if-no-files-found: warn
           retention-days: 7
