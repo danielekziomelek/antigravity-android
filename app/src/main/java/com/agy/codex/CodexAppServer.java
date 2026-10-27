@@ -53,12 +53,15 @@ public final class CodexAppServer implements Closeable {
      * The executable must be installed in app-private storage and verified before
      * this method is called. No shell is used to launch it.
      */
-    public synchronized void start(File codexExecutable, File workingDirectory) throws IOException {
+    public synchronized void start(File codexExecutable, File codexHome, File workingDirectory) throws IOException {
         if (process != null) {
             throw new IllegalStateException("Codex App Server is already running");
         }
         if (codexExecutable == null || !codexExecutable.isFile() || !codexExecutable.canExecute()) {
             throw new IOException("Codex executable is missing or not executable");
+        }
+        if (codexHome == null || !codexHome.isDirectory()) {
+            throw new IOException("Codex private home directory does not exist");
         }
         if (workingDirectory == null || !workingDirectory.isDirectory()) {
             throw new IOException("Codex working directory does not exist");
@@ -67,7 +70,8 @@ public final class CodexAppServer implements Closeable {
         ProcessBuilder builder = new ProcessBuilder(codexExecutable.getAbsolutePath(), "app-server", "--listen", "stdio://");
         builder.directory(workingDirectory);
         builder.redirectErrorStream(false);
-        builder.environment().put("HOME", workingDirectory.getAbsolutePath());
+        // Keep Codex auth/config state separate from the user workspace.
+        builder.environment().put("HOME", codexHome.getAbsolutePath());
         process = builder.start();
         writer = new BufferedWriter(new OutputStreamWriter(process.getOutputStream(), StandardCharsets.UTF_8));
 
