@@ -42,8 +42,10 @@ jobs:
           javac -source 8 -target 8 \
             -classpath "$RUNNER_TEMP/android/android.jar" \
             -d "$RUNNER_TEMP/codex-classes" \
-            app/src/main/java/com/agy/codex/CodexAppServer.java
+            app/src/main/java/com/agy/codex/CodexAppServer.java \\
+            app/src/main/java/com/agy/codex/CodexConversation.java
           test -f "$RUNNER_TEMP/codex-classes/com/agy/codex/CodexAppServer.class"
+          test -f "$RUNNER_TEMP/codex-classes/com/agy/codex/CodexConversation.class"
 
       - name: Validate Java source whitespace
         run: git diff --check
