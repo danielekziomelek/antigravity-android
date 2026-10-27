@@ -2,6 +2,14 @@ package com.agy.bridge;
 
 import android.content.Context;
 import android.webkit.JavascriptInterface;
+import android.util.Log;
+
+import com.agy.codex.CodexAppServer;
+
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import java.io.File;
 
 import com.agy.runtime.RuntimeManager;
 import com.agy.shell.ShizukuBridge;
@@ -20,7 +28,10 @@ import java.security.SecureRandom;
  */
 public final class AndroidBridge {
 
+    private final Context appContext;
     private final UiBridge ui = new UiBridge();
+    private volatile CodexAppServer codexServer;
+    private volatile com.agy.codex.TermuxCodexClient termuxCodexClient;
     private final ThemeBridge themeBridge;
     private final EngineBridge engine;
     private final EngineConfigJson config;
@@ -30,6 +41,7 @@ public final class AndroidBridge {
     public AndroidBridge(Context context, RuntimeManager runtime,
                          ShizukuBridge shizuku, ThemeManager theme) {
         Context appContext = context.getApplicationContext();
+        this.appContext = appContext;
         this.themeBridge = new ThemeBridge(theme);
         this.engine = new EngineBridge(runtime);
         this.config = new EngineConfigJson(appContext, runtime, engine, shizuku, themeBridge);
@@ -96,6 +108,150 @@ public final class AndroidBridge {
     @JavascriptInterface
     public void setDesktopMode(boolean enabled) {
         ui.setDesktopMode(enabled);
+    }
+
+    /**
+     * Starts Codex only from the app-private files directory. The token check is
+     * mandatory because the JavaScript interface may be visible to embedded frames.
+     * Expected executable: files/codex/bin/codex (Android-compatible ARM64 build).
+     */
+    /** Connect to the Termux companion on loopback using its one-time local bearer token. */
+    @JavascriptInterface
+    public String codexConnectTermux(String token, String bearerToken) {
+        if (!matchesNativeBridgeToken(token)) return codexJson("error", "Invalid native bridge token");
+        String secret = bearerToken == null ? "" : bearerToken.trim();
+        if (secret.length() < 32 || secret.length() > 160) return codexJson("error", "Paste the bearer token printed by the Termux bridge");
+        synchronized (this) {
+            if (termuxCodexClient != null) return codexJson("status", "already_connected");
+            termuxCodexClient = new com.agy.codex.TermuxCodexClient(secret, new com.agy.codex.TermuxCodexClient.Listener() {
+                @Override public void onEvent(String type, JSONObject data) {
+                    emitCodexEvent(type, data);
+                }
+            });
+            termuxCodexClient.start();
+        }
+        return codexJson("status", "connecting_to_termux");
+    }
+
+    @JavascriptInterface
+    public String codexTermuxAction(String token, String action, String message) {
+        if (!matchesNativeBridgeToken(token)) return codexJson("error", "Invalid native bridge token");
+        com.agy.codex.TermuxCodexClient client = termuxCodexClient;
+        if (client == null) return codexJson("error", "Connect Termux first");
+        if (!("start".equals(action) || "login".equals(action) || "thread".equals(action)
+                || "send".equals(action) || "stop".equals(action))) {
+            return codexJson("error", "Unsupported Termux action");
+        }
+        client.action(action, message);
+        return codexJson("status", "termux_" + action + "_requested");
+    }
+
+    @JavascriptInterface
+    public String codexStart(String token) {
+        if (!matchesNativeBridgeToken(token)) return codexJson("error", "Invalid native bridge token");
+        synchronized (this) {
+            if (codexServer != null) return codexJson("status", "already_started");
+            File root = new File(appContext.getFilesDir(), "codex");
+            File executable = new File(root, "bin/codex");
+            if (!executable.isFile() || !executable.canExecute()) {
+                return codexJson("error", "Codex binary is not installed. Expected an Android-compatible executable at " + executable.getAbsolutePath());
+            }
+            File home = new File(root, "home");
+            File cwd = new File(root, "workspace");
+            codexServer = new CodexAppServer(executable, home, cwd, new CodexAppServer.Listener() {
+                @Override public void onReady(JSONObject result) {
+                    emitCodexEvent("ready", result);
+                }
+                @Override public void onLoginStarted(JSONObject result) { emitCodexEvent("login_started", result); }
+                @Override public void onLoginCompleted(JSONObject result) { emitCodexEvent("login_completed", result); }
+                @Override public void onThreadStarted(String threadId) {
+                    emitCodexEvent("thread_started", new JSONObjectSafe().put("threadId", threadId).value());
+                }
+                @Override public void onMessageDelta(String threadId, String turnId, String itemId, String delta) {
+                    JSONObject data = new JSONObjectSafe().put("threadId", threadId).put("turnId", turnId)
+                            .put("itemId", itemId).put("delta", delta).value();
+                    emitCodexEvent("message_delta", data);
+                }
+                @Override public void onTurnCompleted(String threadId, JSONObject turn) {
+                    emitCodexEvent("turn_completed", new JSONObjectSafe().put("threadId", threadId).put("turn", turn).value());
+                }
+                @Override public void onError(String message) {
+                    emitCodexEvent("error", new JSONObjectSafe().put("message", message).value());
+                }
+                @Override public void onServerExit(int exitCode) {
+                    emitCodexEvent("server_exit", new JSONObjectSafe().put("exitCode", exitCode).value());
+                    synchronized (AndroidBridge.this) { codexServer = null; }
+                }
+            });
+            codexServer.start();
+            return codexJson("status", "starting");
+        }
+    }
+
+    @JavascriptInterface
+    public String codexLogin(String token) {
+        if (!matchesNativeBridgeToken(token)) return codexJson("error", "Invalid native bridge token");
+        com.agy.codex.TermuxCodexClient remote = termuxCodexClient;
+        if (remote != null) { remote.action("login", null); return codexJson("status", "termux_login_requested"); }
+        CodexAppServer server = codexServer;
+        if (server == null) return codexJson("error", "Codex server is not running");
+        server.startChatGptLogin();
+        return codexJson("status", "login_requested");
+    }
+
+    @JavascriptInterface
+    public String codexStartThread(String token) {
+        if (!matchesNativeBridgeToken(token)) return codexJson("error", "Invalid native bridge token");
+        com.agy.codex.TermuxCodexClient remote = termuxCodexClient;
+        if (remote != null) { remote.action("thread", null); return codexJson("status", "termux_thread_requested"); }
+        CodexAppServer server = codexServer;
+        if (server == null) return codexJson("error", "Codex server is not running");
+        server.startThread();
+        return codexJson("status", "thread_start_requested");
+    }
+
+    @JavascriptInterface
+    public String codexSendMessage(String token, String message) {
+        if (!matchesNativeBridgeToken(token)) return codexJson("error", "Invalid native bridge token");
+        com.agy.codex.TermuxCodexClient remote = termuxCodexClient;
+        if (remote != null) { remote.action("send", message); return codexJson("status", "termux_send_requested"); }
+        CodexAppServer server = codexServer;
+        if (server == null) return codexJson("error", "Codex server is not running");
+        server.sendMessage(message);
+        return codexJson("status", "sent");
+    }
+
+    @JavascriptInterface
+    public void codexStop(String token) {
+        if (!matchesNativeBridgeToken(token)) return;
+        com.agy.codex.TermuxCodexClient remote;
+        synchronized (this) { remote = termuxCodexClient; termuxCodexClient = null; }
+        if (remote != null) remote.close();
+        CodexAppServer server;
+        synchronized (this) {
+            server = codexServer;
+            codexServer = null;
+        }
+        if (server != null) server.close();
+        emitCodexEvent("stopped", new JSONObject());
+    }
+
+    private String codexJson(String key, String value) {
+        return new JSONObjectSafe().put(key, value).value().toString();
+    }
+
+    private void emitCodexEvent(String type, JSONObject data) {
+        MainActivity act = activityRef != null ? activityRef.get() : MainActivity.activeActivity;
+        if (act != null) act.dispatchCodexEvent(new JSONObjectSafe().put("type", type).put("data", data).value().toString());
+    }
+
+    private static final class JSONObjectSafe {
+        private final JSONObject object = new JSONObject();
+        JSONObjectSafe put(String key, Object value) {
+            try { object.put(key, value); } catch (JSONException ignored) {}
+            return this;
+        }
+        JSONObject value() { return object; }
     }
 
     // Native-only helpers used while preparing the trusted app document.

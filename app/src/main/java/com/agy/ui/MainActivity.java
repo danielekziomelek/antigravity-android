@@ -19,6 +19,7 @@ import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebView;
 import android.widget.FrameLayout;
+import org.json.JSONObject;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -215,6 +216,19 @@ public class MainActivity extends Activity
         splash.dismiss();
     }
 
+    /** Sends a typed, JSON-encoded event to the trusted top-level WebView document. */
+    public void dispatchCodexEvent(final String eventJson) {
+        handler.post(new Runnable() {
+            @Override public void run() {
+                if (webViewHost == null || webViewHost.getWebView() == null) return;
+                String quoted = JSONObject.quote(eventJson == null ? "{}" : eventJson);
+                webViewHost.getWebView().evaluateJavascript(
+                        "window.dispatchEvent(new CustomEvent('agy-codex-event',{detail:JSON.parse(" + quoted + ")}));",
+                        null);
+            }
+        });
+    }
+
     public boolean isDesktopMode() {
         return webViewHost != null ? webViewHost.isDesktopMode() : DesktopModePrefs.isDesktopMode(this);
     }
@@ -235,6 +249,7 @@ public class MainActivity extends Activity
         }
         AppLifecycle.destroy(handler);
         if (androidBridge != null) {
+            androidBridge.codexStop(androidBridge.getBlobBridgeToken());
             androidBridge.setActivity(null);
         }
         if (rootLayout != null) {
