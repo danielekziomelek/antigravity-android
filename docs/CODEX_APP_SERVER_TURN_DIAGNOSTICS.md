@@ -44,3 +44,10 @@ Do not mix the separately downloaded `codex-aarch64-unknown-linux-musl` binary w
 ## Current test boundary
 
 The GitHub Actions workflow `.github/workflows/codex-arm64-smoke.yml` runs on Linux ARM64 and checks the official Linux ARM64 release. It is not an Android/Bionic compatibility test and currently performs no authenticated model turn.
+
+
+## First Termux probe result (2026-10-27)
+
+The first run on the user's device showed that App Server initialized, accepted `thread/start` and `turn/start`, emitted `item/agentMessage/delta` events, and ended with `turn/completed` status `completed`. This is evidence that the current App Server path can complete a turn on that device; the earlier routing failure was not reproduced in this run.
+
+The ordinary `codex exec` comparison did not reach the model: it exited with the CLI message that the temporary directory was not a trusted directory and `--skip-git-repo-check` was not specified. The probe has been updated to pass that flag for its isolated temporary working directory. Rerun the updated script before drawing a conclusion comparing both paths.
