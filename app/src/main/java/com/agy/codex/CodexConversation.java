@@ -9,14 +9,17 @@ import java.io.IOException;
 /**
  * Small protocol adapter for Codex App Server conversations.
  *
- * This class intentionally does not implement authentication or UI wiring.
- * It translates user messages into thread/start and turn/start requests and
- * forwards streamed assistant text to the host application.
+ * Protocol adapter for Codex conversations and official App Server login flows.
+ * UI code must display login URLs/device codes and open URLs in the system browser.
  */
 public final class CodexConversation implements CodexAppServer.Listener {
     public interface Listener {
         void onReady();
         void onThreadStarted(String threadId);
+        void onLoginUrl(String url);
+        void onDeviceCode(String verificationUrl, String userCode);
+        void onLoginCompleted(boolean success, String message);
+        void onAccountUpdated(String authMode, String planType);
         void onAssistantText(String delta);
         void onTurnFinished(String status);
         void onProtocolMessage(JSONObject message);
@@ -28,6 +31,8 @@ public final class CodexConversation implements CodexAppServer.Listener {
     private volatile long initializeId = -1L;
     private volatile long startThreadId = -1L;
     private volatile long activeTurnId = -1L;
+    private volatile long loginRequestId = -1L;
+    private volatile long accountReadRequestId = -1L;
     private volatile String threadId;
 
     public CodexConversation(CodexAppServer server, Listener listener) {
@@ -46,6 +51,27 @@ public final class CodexConversation implements CodexAppServer.Listener {
         // Use the transport's handshake helper so it sends "initialized"
         // only after a successful initialize response.
         initializeId = server.initialize();
+    }
+
+    /** Begin official ChatGPT OAuth in the system browser. */
+    public void startChatGptBrowserLogin() throws IOException, JSONException {
+        JSONObject params = new JSONObject();
+        params.put("type", "chatgpt");
+        params.put("useHostedLoginSuccessPage", true);
+        params.put("appBrand", "chatgpt");
+        loginRequestId = server.sendRequest("account/login/start", params);
+    }
+
+    /** Begin official ChatGPT device-code login; show the returned code to the user. */
+    public void startChatGptDeviceCodeLogin() throws IOException, JSONException {
+        JSONObject params = new JSONObject();
+        params.put("type", "chatgptDeviceCode");
+        loginRequestId = server.sendRequest("account/login/start", params);
+    }
+
+    /** Query account/plan state reported by Codex App Server. */
+    public void refreshAccountState() throws IOException, JSONException {
+        accountReadRequestId = server.sendRequest("account/read", new JSONObject());
     }
 
     /** Start a fresh Codex thread after initialize has succeeded. */
@@ -111,10 +137,51 @@ public final class CodexConversation implements CodexAppServer.Listener {
                 current.onError("Codex rejected the turn request");
             }
 
+            if (id == loginRequestId) {
+                loginRequestId = -1L;
+                if (message.has("result") && !message.has("error")) {
+                    JSONObject result = message.getJSONObject("result");
+                    String type = result.optString("type", "");
+                    if ("chatgpt".equals(type)) {
+                        String url = result.optString("authUrl", "");
+                        if (!url.isEmpty()) current.onLoginUrl(url);
+                        else current.onError("Codex did not return a login URL");
+                    } else if ("chatgptDeviceCode".equals(type)) {
+                        String url = result.optString("verificationUrl", "");
+                        String code = result.optString("userCode", "");
+                        if (!url.isEmpty() && !code.isEmpty()) current.onDeviceCode(url, code);
+                        else current.onError("Codex did not return a device code");
+                    } else {
+                        current.onError("Codex returned an unknown login flow");
+                    }
+                } else {
+                    current.onError("Could not start ChatGPT login");
+                }
+            } else if (id == accountReadRequestId) {
+                accountReadRequestId = -1L;
+                if (message.has("result") && !message.has("error")) {
+                    JSONObject result = message.optJSONObject("result");
+                    if (result != null) {
+                        JSONObject account = result.optJSONObject("account");
+                        String authMode = result.optString("authMode", account == null ? "unknown" : account.optString("authMode", "unknown"));
+                        String planType = result.optString("planType", account == null ? "unknown" : account.optString("planType", "unknown"));
+                        current.onAccountUpdated(authMode, planType);
+                    }
+                } else {
+                    current.onError("Could not read Codex account state");
+                }
+            }
+
             String method = message.optString("method", "");
             JSONObject params = message.optJSONObject("params");
             if (params != null) {
-                if ("item/agentMessage/delta".equals(method)) {
+                if ("account/login/completed".equals(method)) {
+                    boolean success = params.optBoolean("success", false);
+                    String detail = params.optString("error", success ? "ChatGPT sign-in complete" : "ChatGPT sign-in failed");
+                    current.onLoginCompleted(success, detail);
+                } else if ("account/updated".equals(method)) {
+                    current.onAccountUpdated(params.optString("authMode", "unknown"), params.optString("planType", "unknown"));
+                } else if ("item/agentMessage/delta".equals(method)) {
                     String delta = params.optString("delta", "");
                     if (!delta.isEmpty()) current.onAssistantText(delta);
                 } else if ("turn/completed".equals(method)) {
