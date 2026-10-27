@@ -53,6 +53,7 @@ public final class AppHtmlInjector {
                     + "};"
                     + "window.dialog={showOpenDialog:function(){return new Promise(function(resolve){window.__onDirectoryPicked=function(path){resolve(path);};if(window.Android&&typeof window.Android.openDirectoryPicker==='function'){window.Android.openDirectoryPicker();}else{resolve(null);}});}};"
                     + "})();</script>"
+                    + codexPanelScript()
                     + "<script src=\"" + READY_SCRIPT + "\"></script>";
         } catch (Exception e) {
             Log.w(TAG, "config injection failed", e);
@@ -65,4 +66,27 @@ public final class AppHtmlInjector {
         }
         return boot + html;
     }
+
+    /**
+     * Small native Codex control panel. It is deliberately separate from the
+     * existing Antigravity provider UI: no model selection or quota behavior is
+     * spoofed, and the panel reports when the runtime executable is absent.
+     */
+    private static String codexPanelScript() {
+        return "<script>(function(){"
+                + "if(window.__AG_CODEX_PANEL_INSTALLED__)return;window.__AG_CODEX_PANEL_INSTALLED__=true;"
+                + "var css='#agy-codex-fab{position:fixed;right:16px;bottom:100px;z-index:2147483000;border:0;border-radius:24px;padding:12px 17px;background:#2563eb;color:white;font:600 14px sans-serif;box-shadow:0 4px 18px #0006}#agy-codex-panel{position:fixed;left:12px;right:12px;bottom:80px;z-index:2147483001;background:#171717;color:#eee;border:1px solid #444;border-radius:18px;padding:14px;font:14px sans-serif;box-shadow:0 8px 32px #0009;display:none}#agy-codex-panel button,#agy-codex-panel input{font:inherit;border-radius:9px;padding:10px;border:1px solid #555;background:#262626;color:#eee}#agy-codex-panel button{margin:3px}#agy-codex-log{white-space:pre-wrap;overflow:auto;max-height:34vh;min-height:52px;margin:10px 0;padding:8px;background:#101010;border-radius:8px;overflow-wrap:anywhere}#agy-codex-input{box-sizing:border-box;width:100%;margin-top:6px}#agy-codex-actions{display:flex;flex-wrap:wrap}';"
+                + "var style=document.createElement('style');style.textContent=css;(document.head||document.documentElement).appendChild(style);"
+                + "var fab=document.createElement('button');fab.id='agy-codex-fab';fab.textContent='Codex';"
+                + "var panel=document.createElement('section');panel.id='agy-codex-panel';"
+                + "panel.innerHTML='<div style=\"display:flex;justify-content:space-between;align-items:center\"><strong>Codex App Server</strong><button id=\"agy-codex-close\">✕</button></div><div id=\"agy-codex-status\">Not started</div><div id=\"agy-codex-actions\"><button id=\"agy-codex-start\">Start</button><button id=\"agy-codex-login\">Login with ChatGPT</button><button id=\"agy-codex-thread\">New thread</button><button id=\"agy-codex-stop\">Stop</button></div><div id=\"agy-codex-log\">Codex runtime has not been started.</div><input id=\"agy-codex-input\" placeholder=\"Message Codex…\"/><button id=\"agy-codex-send\">Send</button>';"
+                + "function byId(id){return document.getElementById(id)}function log(s){var el=byId('agy-codex-log');el.textContent+=(el.textContent?'\\n':'')+String(s);el.scrollTop=el.scrollHeight}function status(s){byId('agy-codex-status').textContent=s}"
+                + "document.documentElement.appendChild(fab);document.documentElement.appendChild(panel);fab.onclick=function(){panel.style.display=panel.style.display==='block'?'none':'block'};byId('agy-codex-close').onclick=function(){panel.style.display='none'};"
+                + "function call(name,arg){if(!window.__AG_CODEX__||!window.__AG_CODEX__[name]){status('Bridge unavailable');log('Native Codex bridge is unavailable.');return null}var result=window.__AG_CODEX__[name](arg);if(result&&result.error){status('Error');log(result.error)}else if(result&&result.status){status(result.status);log(name+': '+result.status)}return result}"
+                + "byId('agy-codex-start').onclick=function(){call('start')};byId('agy-codex-login').onclick=function(){call('login')};byId('agy-codex-thread').onclick=function(){call('startThread')};byId('agy-codex-stop').onclick=function(){call('stop');status('Stopped')};"
+                + "function send(){var el=byId('agy-codex-input'),v=el.value;if(!v.trim())return;call('send',v);el.value=''}byId('agy-codex-send').onclick=send;byId('agy-codex-input').addEventListener('keydown',function(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}});"
+                + "window.addEventListener('agy-codex-event',function(e){var d=e.detail||{},v=d.data||{};switch(d.type){case'ready':status('App Server ready');log('Codex App Server initialized.');break;case'login_started':status('Login request sent');log('Login started: '+JSON.stringify(v));break;case'login_completed':status('Login completed');log('ChatGPT login completed: '+JSON.stringify(v));break;case'thread_started':status('Thread ready');log('Thread: '+(v.threadId||''));break;case'message_delta':log(v.delta||'');break;case'turn_completed':status('Turn completed');log('Turn completed.');break;case'error':status('Error');log(v.message||'Codex error');break;case'server_exit':status('Server exited ('+v.exitCode+')');break;case'stopped':status('Stopped');break;}});"
+                + "})();</script>";
+    }
+
 }
