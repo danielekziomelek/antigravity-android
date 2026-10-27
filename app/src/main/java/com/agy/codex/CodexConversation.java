@@ -42,13 +42,9 @@ public final class CodexConversation implements CodexAppServer.Listener {
 
     /** Start the protocol handshake. Call after CodexAppServer.start(...). */
     public void initialize() throws IOException, JSONException {
-        JSONObject clientInfo = new JSONObject();
-        clientInfo.put("name", "antigravity_android_codex");
-        clientInfo.put("title", "Antigravity for Android");
-        clientInfo.put("version", "0.1.0");
-        JSONObject params = new JSONObject();
-        params.put("clientInfo", clientInfo);
-        initializeId = server.sendRequest("initialize", params);
+        // Use the transport's handshake helper so it sends "initialized"
+        // only after a successful initialize response.
+        initializeId = server.initialize();
     }
 
     /** Start a fresh Codex thread after initialize has succeeded. */
