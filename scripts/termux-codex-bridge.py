@@ -202,8 +202,19 @@ class Handler(BaseHTTPRequestHandler):
                 send_rpc("account/login/start", {"type": "chatgpt"})
                 return self.send_json(202, {"status": "login_requested"})
             if action == "thread":
-                send_rpc("thread/start", {"cwd": str(Path.cwd())})
-                return self.send_json(202, {"status": "thread_requested"})
+                requested = str(body.get("text", "")).strip()
+                cwd = Path(requested).expanduser() if requested else Path.cwd()
+                try:
+                    cwd = cwd.resolve(strict=True)
+                except (OSError, RuntimeError):
+                    return self.send_json(400, {"error": "project_directory_not_found"})
+                if not cwd.is_dir():
+                    return self.send_json(400, {"error": "project_path_is_not_a_directory"})
+                if not os.access(str(cwd), os.R_OK | os.X_OK):
+                    return self.send_json(403, {"error": "project_directory_not_accessible"})
+                send_rpc("thread/start", {"cwd": str(cwd)})
+                emit("project_selected", {"cwd": str(cwd)})
+                return self.send_json(202, {"status": "thread_requested", "cwd": str(cwd)})
             if action == "send":
                 text = str(body.get("text", ""))[:12000].strip()
                 if not text:
