@@ -46,6 +46,11 @@ public final class AppHtmlInjector {
                     + "window.__AG_NATIVE_BRIDGE_TOKEN__="
                     + JSONObject.quote(bridge.getBlobBridgeToken()) + ";"
                     + "window.AndroidBridge=window.Android;"
+                    + "window.__AG_CODEX__={"
+                    + "start:function(){if(!window.Android||!Android.codexStart)return JSON.stringify({error:'native bridge unavailable'});try{return JSON.parse(Android.codexStart(window.__AG_NATIVE_BRIDGE_TOKEN__));}catch(e){return {error:String(e)};}},"
+                    + "send:function(text){if(!window.Android||!Android.codexSendMessage)return JSON.stringify({error:'native bridge unavailable'});try{return JSON.parse(Android.codexSendMessage(window.__AG_NATIVE_BRIDGE_TOKEN__,String(text)));}catch(e){return {error:String(e)};}},"
+                    + "stop:function(){if(window.Android&&Android.codexStop)Android.codexStop(window.__AG_NATIVE_BRIDGE_TOKEN__);}"
+                    + "};"
                     + "window.dialog={showOpenDialog:function(){return new Promise(function(resolve){window.__onDirectoryPicked=function(path){resolve(path);};if(window.Android&&typeof window.Android.openDirectoryPicker==='function'){window.Android.openDirectoryPicker();}else{resolve(null);}});}};"
                     + "})();</script>"
                     // Signals first paint back to native (AndroidBridge.onUiReady)
