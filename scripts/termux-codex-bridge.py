@@ -43,6 +43,14 @@ def emit(kind, data=None):
         events.append({"id": seq, "type": kind, "data": data or {}, "at": time.time()})
 
 
+def send_notification(method, params=None):
+    with write_lock:
+        if process is None or process.poll() is not None or writer is None:
+            raise RuntimeError("Codex App Server is not running")
+        writer.write(json.dumps({"jsonrpc": "2.0", "method": method, "params": params or {}}, separators=(",", ":")) + "\\n")
+        writer.flush()
+
+
 def send_rpc(method, params=None):
     global next_id
     with write_lock:
@@ -88,7 +96,7 @@ def read_server():
                 result = msg.get("result") or {}
                 if request == "initialize":
                     try:
-                        send_rpc("initialized", {})
+                        send_notification("initialized", {})
                     except Exception:
                         pass
                     emit("ready", result)
