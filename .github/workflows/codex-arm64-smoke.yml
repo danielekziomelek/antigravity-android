@@ -6,6 +6,7 @@ on:
     branches: [codex-android-experiment]
     paths:
       - ".github/workflows/codex-arm64-smoke.yml"
+      - "app/src/main/java/com/agy/codex/**"
 
 permissions:
   contents: read
