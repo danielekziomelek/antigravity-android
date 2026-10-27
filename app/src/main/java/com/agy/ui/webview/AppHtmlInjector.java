@@ -48,7 +48,9 @@ public final class AppHtmlInjector {
                     + "window.AndroidBridge=window.Android;"
                     + "window.__AG_CODEX__={"
                     + "start:function(){if(!window.Android||!Android.codexStart)return JSON.stringify({error:'native bridge unavailable'});try{return JSON.parse(Android.codexStart(window.__AG_NATIVE_BRIDGE_TOKEN__));}catch(e){return {error:String(e)};}},"
-                    + "login:function(){if(!window.Android||!Android.codexLogin)return {error:'native bridge unavailable'};try{return JSON.parse(Android.codexLogin(window.__AG_NATIVE_BRIDGE_TOKEN__));}catch(e){return {error:String(e)};}},\n                    + "startThread:function(){if(!window.Android||!Android.codexStartThread)return {error:'native bridge unavailable'};try{return JSON.parse(Android.codexStartThread(window.__AG_NATIVE_BRIDGE_TOKEN__));}catch(e){return {error:String(e)};}},\n                    + "send:function(text){if(!window.Android||!Android.codexSendMessage)return JSON.stringify({error:'native bridge unavailable'});try{return JSON.parse(Android.codexSendMessage(window.__AG_NATIVE_BRIDGE_TOKEN__,String(text)));}catch(e){return {error:String(e)};}},"
+                    + "login:function(){if(!window.Android||!Android.codexLogin)return {error:'native bridge unavailable'};try{return JSON.parse(Android.codexLogin(window.__AG_NATIVE_BRIDGE_TOKEN__));}catch(e){return {error:String(e)};}},
+                    + "startThread:function(){if(!window.Android||!Android.codexStartThread)return {error:'native bridge unavailable'};try{return JSON.parse(Android.codexStartThread(window.__AG_NATIVE_BRIDGE_TOKEN__));}catch(e){return {error:String(e)};}},
+                    + "send:function(text){if(!window.Android||!Android.codexSendMessage)return JSON.stringify({error:'native bridge unavailable'});try{return JSON.parse(Android.codexSendMessage(window.__AG_NATIVE_BRIDGE_TOKEN__,String(text)));}catch(e){return {error:String(e)};}},"
                     + "stop:function(){if(window.Android&&Android.codexStop)Android.codexStop(window.__AG_NATIVE_BRIDGE_TOKEN__);}"
                     + "};"
                     + "window.dialog={showOpenDialog:function(){return new Promise(function(resolve){window.__onDirectoryPicked=function(path){resolve(path);};if(window.Android&&typeof window.Android.openDirectoryPicker==='function'){window.Android.openDirectoryPicker();}else{resolve(null);}});}};"
@@ -63,7 +65,8 @@ public final class AppHtmlInjector {
         int head = html.indexOf("<head>");
         if (head >= 0) {
             int at = head + "<head>".length();
-            return html.substring(0, at) + "\n" + boot + html.substring(at);
+            return html.substring(0, at) + "
+" + boot + html.substring(at);
         }
         return boot + html;
     }
