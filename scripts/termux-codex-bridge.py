@@ -47,7 +47,7 @@ def send_notification(method, params=None):
     with write_lock:
         if process is None or process.poll() is not None or writer is None:
             raise RuntimeError("Codex App Server is not running")
-        writer.write(json.dumps({"jsonrpc": "2.0", "method": method, "params": params or {}}, separators=(",", ":")) + "\\n")
+        writer.write(json.dumps({"jsonrpc": "2.0", "method": method, "params": params or {}}, separators=(",", ":")) + "\n")
         writer.flush()
 
 
