@@ -35,6 +35,7 @@ public final class CodexAppServer implements Closeable {
     private volatile Process process;
     private volatile BufferedWriter writer;
     private volatile Listener listener;
+    private volatile long initializeRequestId = -1L;
 
     public interface Listener {
         /** A response or notification from app-server. Never log auth payloads. */
@@ -118,7 +119,9 @@ public final class CodexAppServer implements Closeable {
         clientInfo.put("version", "0.1.0");
         JSONObject params = new JSONObject();
         params.put("clientInfo", clientInfo);
-        return sendRequest("initialize", params);
+        long id = sendRequest("initialize", params);
+        initializeRequestId = id;
+        return id;
     }
 
     private void writeMessage(JSONObject message) throws IOException {
@@ -139,6 +142,14 @@ public final class CodexAppServer implements Closeable {
             while ((line = in.readLine()) != null) {
                 try {
                     JSONObject message = new JSONObject(line);
+                    long initId = initializeRequestId;
+                    if (initId > 0 && message.optLong("id", -1L) == initId
+                            && message.has("result") && !message.has("error")) {
+                        initializeRequestId = -1L;
+                        // The protocol requires this notification only after the
+                        // initialize request has succeeded.
+                        sendNotification("initialized", new JSONObject());
+                    }
                     Listener current = listener;
                     if (current != null) current.onMessage(message);
                 } catch (JSONException e) {
