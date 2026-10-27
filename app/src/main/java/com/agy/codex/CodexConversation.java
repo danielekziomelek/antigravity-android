@@ -110,14 +110,14 @@ public final class CodexConversation implements CodexAppServer.Listener {
         if (current == null || message == null) return;
         try {
             long id = message.optLong("id", -1L);
-            if (id == initializeId) {
+            if (initializeId > 0 && id == initializeId) {
                 initializeId = -1L;
                 if (message.has("result") && !message.has("error")) {
                     current.onReady();
                 } else {
                     current.onError("Codex initialization failed");
                 }
-            } else if (id == startThreadId) {
+            } else if (startThreadId > 0 && id == startThreadId) {
                 startThreadId = -1L;
                 if (message.has("result") && !message.has("error")) {
                     JSONObject result = message.getJSONObject("result");
@@ -132,12 +132,12 @@ public final class CodexConversation implements CodexAppServer.Listener {
                 } else {
                     current.onError("Codex could not start a thread");
                 }
-            } else if (id == activeTurnId && message.has("error")) {
+            } else if (activeTurnId > 0 && id == activeTurnId && message.has("error")) {
                 activeTurnId = -1L;
                 current.onError("Codex rejected the turn request");
             }
 
-            if (id == loginRequestId) {
+            if (loginRequestId > 0 && id == loginRequestId) {
                 loginRequestId = -1L;
                 if (message.has("result") && !message.has("error")) {
                     JSONObject result = message.getJSONObject("result");
@@ -157,7 +157,7 @@ public final class CodexConversation implements CodexAppServer.Listener {
                 } else {
                     current.onError("Could not start ChatGPT login");
                 }
-            } else if (id == accountReadRequestId) {
+            } else if (accountReadRequestId > 0 && id == accountReadRequestId) {
                 accountReadRequestId = -1L;
                 if (message.has("result") && !message.has("error")) {
                     JSONObject result = message.optJSONObject("result");
