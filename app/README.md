@@ -194,3 +194,14 @@ The branch `codex-android-experiment` adds `com.agy.codex.CodexAppServer`, a sma
 Before enabling this backend, the next steps are to test a supported ARM64 Codex distribution in the Android/glibc runtime, implement the initialize-response → `initialized` handshake in a controller, add thread/turn lifecycle and approval handling, and build a protocol adapter for the existing UI. Do not reuse or scrape the ChatGPT app's private session; use Codex's documented sign-in flow.
 
 Protocol reference: https://learn.chatgpt.com/docs/app-server
+
+
+## Experimental Codex adapter
+
+The branch `codex-android-experiment` now includes two isolated Java primitives under
+`com.agy.codex`:
+
+- `CodexAppServer`: launches a caller-provided executable and transports newline-delimited JSON over stdio.
+- `CodexConversation`: sends the `initialize`, `thread/start`, and `turn/start` requests and forwards assistant text deltas and turn completion events.
+
+These classes are not wired into `CoreServerService`, the WebView, or the existing Gemini ConnectRPC client. No Codex binary is bundled or installed by this change, and no ChatGPT sign-in flow is implemented. The Android API compile workflow is a source-level check only; it does not validate execution on-device or authentication.
