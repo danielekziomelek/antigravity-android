@@ -132,7 +132,7 @@ public final class AndroidBridge {
                     CodexAppServer server = codexServer;
                     if (server != null) server.startThread();
                 }
-                @Override public void onThreadStarted(String threadId) {
+                @Override public void onLoginStarted(JSONObject result) { emitCodexEvent("login_started", result); }\n                @Override public void onLoginCompleted(JSONObject result) { emitCodexEvent("login_completed", result); }\n                @Override public void onThreadStarted(String threadId) {
                     emitCodexEvent("thread_started", new JSONObjectSafe().put("threadId", threadId).value());
                 }
                 @Override public void onMessageDelta(String threadId, String turnId, String itemId, String delta) {
