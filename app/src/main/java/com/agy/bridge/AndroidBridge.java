@@ -1,7 +1,7 @@
 package com.agy.bridge;
 
 import android.content.Context;
-import android.webkit.JavascriptInterface;
+import android.webkit.JavascriptInterface;\nimport android.util.Log;\n\nimport com.agy.codex.CodexAppServer;\n\nimport org.json.JSONException;\nimport org.json.JSONObject;\n\nimport java.io.File;
 
 import com.agy.runtime.RuntimeManager;
 import com.agy.shell.ShizukuBridge;
@@ -20,7 +20,7 @@ import java.security.SecureRandom;
  */
 public final class AndroidBridge {
 
-    private final UiBridge ui = new UiBridge();
+    private final Context appContext;\n    private final UiBridge ui = new UiBridge();\n    private volatile CodexAppServer codexServer;
     private final ThemeBridge themeBridge;
     private final EngineBridge engine;
     private final EngineConfigJson config;
@@ -29,7 +29,7 @@ public final class AndroidBridge {
 
     public AndroidBridge(Context context, RuntimeManager runtime,
                          ShizukuBridge shizuku, ThemeManager theme) {
-        Context appContext = context.getApplicationContext();
+        Context appContext = context.getApplicationContext();\n        this.appContext = appContext;
         this.themeBridge = new ThemeBridge(theme);
         this.engine = new EngineBridge(runtime);
         this.config = new EngineConfigJson(appContext, runtime, engine, shizuku, themeBridge);
@@ -96,6 +96,92 @@ public final class AndroidBridge {
     @JavascriptInterface
     public void setDesktopMode(boolean enabled) {
         ui.setDesktopMode(enabled);
+    }
+
+    /**
+     * Starts Codex only from the app-private files directory. The token check is
+     * mandatory because the JavaScript interface may be visible to embedded frames.
+     * Expected executable: files/codex/bin/codex (Android-compatible ARM64 build).
+     */
+    @JavascriptInterface
+    public String codexStart(String token) {
+        if (!matchesNativeBridgeToken(token)) return codexJson("error", "Invalid native bridge token");
+        synchronized (this) {
+            if (codexServer != null) return codexJson("status", "already_started");
+            File root = new File(appContext.getFilesDir(), "codex");
+            File executable = new File(root, "bin/codex");
+            if (!executable.isFile() || !executable.canExecute()) {
+                return codexJson("error", "Codex binary is not installed. Expected an Android-compatible executable at " + executable.getAbsolutePath());
+            }
+            File home = new File(root, "home");
+            File cwd = new File(root, "workspace");
+            codexServer = new CodexAppServer(executable, home, cwd, new CodexAppServer.Listener() {
+                @Override public void onReady(JSONObject result) {
+                    emitCodexEvent("ready", result);
+                    CodexAppServer server = codexServer;
+                    if (server != null) server.startThread();
+                }
+                @Override public void onThreadStarted(String threadId) {
+                    emitCodexEvent("thread_started", new JSONObjectSafe().put("threadId", threadId).value());
+                }
+                @Override public void onMessageDelta(String threadId, String turnId, String itemId, String delta) {
+                    JSONObject data = new JSONObjectSafe().put("threadId", threadId).put("turnId", turnId)
+                            .put("itemId", itemId).put("delta", delta).value();
+                    emitCodexEvent("message_delta", data);
+                }
+                @Override public void onTurnCompleted(String threadId, JSONObject turn) {
+                    emitCodexEvent("turn_completed", new JSONObjectSafe().put("threadId", threadId).put("turn", turn).value());
+                }
+                @Override public void onError(String message) {
+                    emitCodexEvent("error", new JSONObjectSafe().put("message", message).value());
+                }
+                @Override public void onServerExit(int exitCode) {
+                    emitCodexEvent("server_exit", new JSONObjectSafe().put("exitCode", exitCode).value());
+                    synchronized (AndroidBridge.this) { codexServer = null; }
+                }
+            });
+            codexServer.start();
+            return codexJson("status", "starting");
+        }
+    }
+
+    @JavascriptInterface
+    public String codexSendMessage(String token, String message) {
+        if (!matchesNativeBridgeToken(token)) return codexJson("error", "Invalid native bridge token");
+        CodexAppServer server = codexServer;
+        if (server == null) return codexJson("error", "Codex server is not running");
+        server.sendMessage(message);
+        return codexJson("status", "sent");
+    }
+
+    @JavascriptInterface
+    public void codexStop(String token) {
+        if (!matchesNativeBridgeToken(token)) return;
+        CodexAppServer server;
+        synchronized (this) {
+            server = codexServer;
+            codexServer = null;
+        }
+        if (server != null) server.close();
+        emitCodexEvent("stopped", new JSONObject());
+    }
+
+    private String codexJson(String key, String value) {
+        return new JSONObjectSafe().put(key, value).value().toString();
+    }
+
+    private void emitCodexEvent(String type, JSONObject data) {
+        MainActivity act = activityRef != null ? activityRef.get() : MainActivity.activeActivity;
+        if (act != null) act.dispatchCodexEvent(type, data);
+    }
+
+    private static final class JSONObjectSafe {
+        private final JSONObject object = new JSONObject();
+        JSONObjectSafe put(String key, Object value) {
+            try { object.put(key, value); } catch (JSONException ignored) {}
+            return this;
+        }
+        JSONObject value() { return object; }
     }
 
     // Native-only helpers used while preparing the trusted app document.
