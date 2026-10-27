@@ -22,10 +22,10 @@ TURN_TIMEOUT = 150
 
 
 def run_exec(binary, cwd):
-    print("\n[1/2] Checking ordinary codex exec with the same binary")
+    print("\n[1/2] Checking ordinary codex exec with the same binary (temporary probe directory allowed)")
     try:
         result = subprocess.run(
-            [binary, "exec", PROMPT],
+            [binary, "exec", "--skip-git-repo-check", PROMPT],
             cwd=cwd,
             text=True,
             stdout=subprocess.PIPE,
