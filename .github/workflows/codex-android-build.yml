@@ -1,0 +1,54 @@
+name: Codex Android integration build
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - codex-android-appserver-integration
+    paths:
+      - "app/src/main/java/com/agy/codex/**"
+      - "modules/builder/**"
+      - "build.sh"
+      - ".github/workflows/codex-android-build.yml"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "app/src/main/java/com/agy/codex/**"
+      - "modules/builder/**"
+      - "build.sh"
+      - ".github/workflows/codex-android-build.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: codex-android-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install host build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3 openjdk-17-jdk aapt apksigner zipalign
+
+      - name: Build standard APK
+        run: bash build.sh
+
+      - name: Upload APK and build diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: codex-android-integration-build
+          path: |
+            dist/*.apk
+            build/
+          if-no-files-found: warn
+          retention-days: 7
